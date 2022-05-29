@@ -12,12 +12,14 @@ OBJS = \
   $K/string.o \
   $K/main.o \
   $K/vm.o \
+  $K/sem.o \
   $K/proc.o \
   $K/swtch.o \
   $K/trampoline.o \
   $K/trap.o \
   $K/syscall.o \
   $K/sysproc.o \
+  $K/syssem.o \
   $K/bio.o \
   $K/fs.o \
   $K/log.o \
@@ -28,7 +30,7 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o 
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -137,6 +139,9 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_cons\
+	$U/_prod\
+	$U/_badtest\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

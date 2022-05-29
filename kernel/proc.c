@@ -307,6 +307,11 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  // increment reference counts on semaphores descriptors.
+  for(i = 0; i < NOSEM; i++)
+    if(p->osem[i])
+      np->osem[i] = semdup(p->osem[i]);
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -433,6 +438,12 @@ exit(int status)
       fileclose(f);
       p->ofile[fd] = 0;
     }
+  }
+  
+
+  //Close all open semaphores
+  for(int position = 0; position <  NOSEM ; position++){
+    semclose(position);
   }
 
   begin_op();
@@ -745,3 +756,15 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+get_sid(void)
+{
+  for(int position = 0; position <  NOSEM ; position++){
+    if(!myproc()->osem[position]){
+      return position;
+    }
+  }
+  return -1;
+}
+
