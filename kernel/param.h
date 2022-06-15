@@ -17,4 +17,4 @@
 #define TIMEUNIT     10    // process time unit
 #define NOSEM        16    // open semaphores per processs
 #define NSEM         100   // open semaphores per system
-
+#define MAXSTACKPGS  10    // maximum number of pages between the stack and the process

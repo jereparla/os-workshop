@@ -60,18 +60,22 @@ exec(char *path, char **argv)
   iunlockput(ip);
   end_op();
   ip = 0;
-
-  p = myproc();
+p = myproc();
   uint64 oldsz = p->sz;
+
+  p->cdsize = PGROUNDUP(sz) + PGSIZE;
+  printf(">>>cdsize: %x <<<\n", p->cdsize);
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
-  sz = PGROUNDUP(sz);
+
+  sz = p->cdsize + (MAXSTACKPGS * PGSIZE);
+  printf(">>>size: %x <<<\n", sz);
   uint64 sz1;
-  if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0)
+  if((sz1 = uvmalloc(pagetable, sz, sz + PGSIZE)) == 0)
     goto bad;
   sz = sz1;
-  uvmclear(pagetable, sz-2*PGSIZE);
+  /* uvmclear(pagetable, sz-2*PGSIZE); */
   sp = sz;
   stackbase = sp - PGSIZE;
 

@@ -142,6 +142,7 @@ UPROGS=\
 	$U/_cons\
 	$U/_prod\
 	$U/_badtest\
+	$U/_fib\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
