@@ -64,13 +64,13 @@ p = myproc();
   uint64 oldsz = p->sz;
 
   p->cdsize = PGROUNDUP(sz) + PGSIZE;
-  printf(">>>cdsize: %x <<<\n", p->cdsize);
+  printf("Code + data + free page: %x \n", p->cdsize);
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
 
   sz = p->cdsize + (MAXSTACKPGS * PGSIZE);
-  printf(">>>stack: %x <<<\n", sz);
+  printf("Stack: %x \n", sz);
   uint64 sz1;
   if((sz1 = uvmalloc(pagetable, sz, sz + PGSIZE)) == 0)
     goto bad;

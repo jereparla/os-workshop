@@ -2,20 +2,13 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-int fib(int n) {
-  if (n == 0) {
-    return 0;
-  }
-  if (n == 1) {
-    return 1;
-  }
-
-  return fib(n-1) + fib(n-2);
-}
 
 int main(void) {
 
-  int f = fib(40);
-  printf("%d \n", f);
-  exit(0);
+  char ar[4096];
+  for (int i = 0; i < 4096; i++) {
+    ar[i] = i;
+  }
+
+  exit(ar[0]);
 }

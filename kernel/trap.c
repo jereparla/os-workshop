@@ -79,12 +79,13 @@ usertrap(void)
     }
     // this is true if trying to access one of the free pages available for stack expansion
     else {
+      printf("There would be a page fault at: %x \n", sterror);
       uint64 new_stack_block = PGROUNDDOWN(sterror);
       uint64 sz1;
-      printf(">>>>new block: %x <<<<<\n", new_stack_block);
+      printf("But we assign a new stack block at: %x \n", new_stack_block);
       if((sz1 = uvmalloc(p->pagetable, new_stack_block, new_stack_block + PGSIZE)) == 0)
         panic("uvmalloc");
-      printf("sz1: %x \n", sz1);
+      printf("New stack block + PGSIZE: %x \n", sz1);
     }
   } else if((which_dev = devintr()) != 0){
     // ok
