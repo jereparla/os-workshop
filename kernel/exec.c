@@ -70,7 +70,7 @@ p = myproc();
   // Use the second as the user stack.
 
   sz = p->cdsize + (MAXSTACKPGS * PGSIZE);
-  printf(">>>size: %x <<<\n", sz);
+  printf(">>>stack: %x <<<\n", sz);
   uint64 sz1;
   if((sz1 = uvmalloc(pagetable, sz, sz + PGSIZE)) == 0)
     goto bad;
