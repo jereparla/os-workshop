@@ -150,6 +150,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
+      
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -174,6 +175,12 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
+    printf("EN EL UNMAP \n");
+    uint pa = PTE2PA(*pte);
+    uint flags = PTE_FLAGS(*pte);
+    printf(" el va es %x \n", va);
+    printf(" la PA ES %x \n", pa);
+    printf(" los flags son  %x \n", flags);
     if((*pte & PTE_V) == 0)
       /* panic("uvmunmap: not mapped"); */
       continue;
@@ -184,6 +191,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       kfree((void*)pa);
     }
     *pte = 0;
+    printf("TIENE QUE LLEGAR ACA %x \n", *pte);
   }
 }
 
@@ -292,6 +300,19 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   freewalk(pagetable);
 }
 
+
+// mark a PTE invalid for user write.
+void
+wclear(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  
+  pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    panic("wclear");
+  *pte &= ~PTE_W;
+}
+
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -304,7 +325,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -312,20 +332,23 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       /* panic("uvmcopy: page not present"); */
       continue;
+    
     pa = PTE2PA(*pte);
+    // set off the write bite
+    wclear(old,i);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
   }
   return 0;
 
  err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  uvmunmap(new, 0, i / PGSIZE, 0);
   return -1;
 }
 
@@ -434,3 +457,18 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+uint
+get_flags(pagetable_t pagetable, uint va){
+  pte_t *pte = walk(pagetable, va, 0);
+  uint flags = PTE_FLAGS(*pte);
+  return flags;
+}
+
+uint
+get_pa(pagetable_t pagetable, uint va){
+  pte_t *pte = walk(pagetable, va, 0);
+  uint pa = PTE2PA(*pte);
+  return pa;
+}
+

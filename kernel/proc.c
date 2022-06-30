@@ -190,6 +190,7 @@ proc_pagetable(struct proc *p)
   // to/from user space, so not PTE_U.
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
+    printf("me dio error mappages en el proc_pagetable\n");
     uvmfree(pagetable, 0);
     return 0;
   }
@@ -197,6 +198,7 @@ proc_pagetable(struct proc *p)
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
+    printf("me dio error mappages en el proc_pagetable 2\n");
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
@@ -210,6 +212,7 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+  printf("llame a freepagetable de una\n");
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
@@ -439,7 +442,8 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
-  
+
+  //Check the pa ref counts, the pa ref count should be removed/decremented  
 
   //Close all open semaphores
   for(int position = 0; position <  NOSEM ; position++){

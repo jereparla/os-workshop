@@ -67,25 +67,60 @@ usertrap(void)
 
     syscall();
     //scause = 15 and scause = 13 indicate a page fault (per risc-v man).
-  } else if (r_scause() == 13 || r_scause() == 15){
-
+  } else if (r_scause() == 12 || r_scause() == 2 || r_scause() == 13 || r_scause() == 15){
+    
     uint64 sterror = r_stval();
-    // this is true if trying to access an address either in the free page or above the program's code+data
-    // or below the stack
-    if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
-      printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
+    uint flags = get_flags(p->pagetable, sterror);
+    int f_w = ((flags) & PTE_W);
+    int f_v = ((flags) & PTE_V);
+    
+    if(f_w == 0 && f_v != 0){
+      printf("ENTRA POR FLAG APAGADO Y EL VALID ES %x \n ", flags);
+      char* mem;
+      if((mem = kalloc()) == 0){
+        printf("FALLO EL KALLOC");
+        // goto err;
+      }
+      else{
+        uint64 pa = get_pa(p->pagetable, sterror);
+        memmove(mem, (char*)pa, PGSIZE);
+        printf("LLAMA AL UNMAP \n");
+        printf(" el va es %x \n", sterror);
+        printf(" la PA ES %x \n", pa);
+        printf(" los flags son  %x \n", flags);
+        uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 0);
+
+        if(mappages(p->pagetable, sterror, 1, pa, PTE_W|PTE_R|PTE_X|PTE_U) != 0){
+          printf("FALLO EL map pages");
+          // goto err;
+        }
+      }
+    } 
+    else if(f_v == 0){
+      printf("ENTRA POR FLAG PRENDIDO Y EL VALID ES %x \n ", (flags));
+      // this is true if trying to access an address either in the free page or above the program's code+data
+      // or below the stack
+      if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
+        printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+      }
+      // this is true if trying to access one of the free pages available for stack expansion
+      else {
+        printf("There would be a page fault at: %x \n", sterror);
+        uint64 new_stack_block = PGROUNDDOWN(sterror);
+        uint64 sz1;
+        printf("But we assign a new stack block at: %x \n", new_stack_block);
+        if((sz1 = uvmalloc(p->pagetable, new_stack_block, new_stack_block + PGSIZE)) == 0)
+          panic("uvmalloc");
+        printf("New stack block + PGSIZE: %x \n", sz1);
+      }
+      printf("SALE DEL FLAG PRENDIDO \n");
+    }
+    else{
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
       printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
       p->killed = 1;
-    }
-    // this is true if trying to access one of the free pages available for stack expansion
-    else {
-      printf("There would be a page fault at: %x \n", sterror);
-      uint64 new_stack_block = PGROUNDDOWN(sterror);
-      uint64 sz1;
-      printf("But we assign a new stack block at: %x \n", new_stack_block);
-      if((sz1 = uvmalloc(p->pagetable, new_stack_block, new_stack_block + PGSIZE)) == 0)
-        panic("uvmalloc");
-      printf("New stack block + PGSIZE: %x \n", sz1);
     }
   } else if((which_dev = devintr()) != 0){
     // ok
