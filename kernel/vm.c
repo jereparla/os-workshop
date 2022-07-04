@@ -466,8 +466,6 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 uint64
 get_flags(pagetable_t pagetable, uint64 va){
   if(va >= MAXVA) {
-    printf("MAXVA = %x \n", MAXVA);
-    printf("va = %x \n", va);
     panic("get_flags");
   }
   pte_t *pte = walk(pagetable, va, 0);

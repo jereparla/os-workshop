@@ -70,12 +70,23 @@ usertrap(void)
   } else if (r_scause() == 12 || r_scause() == 13 || r_scause() == 15){
 
     uint64 sterror = r_stval();
-    printf("r_scause = %p \n", r_scause());
-    uint64 flags = get_flags(p->pagetable, sterror);
-    int f_w = ((flags) & PTE_W);
-    int f_v = ((flags) & PTE_V);
-
-    if(f_w == 0 && f_v != 0){
+    uint64 flags;
+    int option_1 = 0;
+    if (sterror >= MAXVA) {
+      option_1 = 1;
+    }
+    else{
+      flags = get_flags(p->pagetable, sterror);
+      int f_w = ((flags) & PTE_W);
+      int f_v = ((flags) & PTE_V);
+      if(f_w == 0 && f_v != 0){
+        option_1 = 0;
+      }
+      else{
+        option_1 = 1;
+      }
+    }
+    if(option_1 == 0){
       uint64 pa = get_pa(p->pagetable, sterror);
       uint refc = get_refc(pa);
       if (refc > 1) {
@@ -98,10 +109,10 @@ usertrap(void)
         panic("wrong reference count");
       }
     }
-    else if(f_v == 0){
+    else{
       // this is true if trying to access an address either in the free page or above the program's code+data
       // or below the stack
-      if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE || sterror > MAXVA) {
+      if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
         printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         p->killed = 1;
@@ -114,11 +125,11 @@ usertrap(void)
           panic("uvmalloc");
       }
     }
-    else{
-      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-      p->killed = 1;
-    }
+    /* else{ */
+    /*   printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid); */
+    /*   printf("            sepc=%p stval=%p\n", r_sepc(), r_stval()); */
+    /*   p->killed = 1; */
+    /* } */
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

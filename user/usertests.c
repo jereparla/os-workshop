@@ -2243,7 +2243,6 @@ MAXVAplus(char *s)
     if(pid == 0){
       *(char*)a = 99;
       printf("%s: oops wrote %x\n", s, a);
-      printf("OUT OF CHILD \n");
       exit(1);
     }
     int xstatus;
