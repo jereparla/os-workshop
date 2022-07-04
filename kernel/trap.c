@@ -39,6 +39,7 @@ usertrap(void)
 {
   int which_dev = 0;
 
+
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
@@ -76,31 +77,45 @@ usertrap(void)
     
     if(f_w == 0 && f_v != 0){
       printf("ENTRA POR FLAG APAGADO Y EL VALID ES %x \n ", flags);
-      char* mem;
-      if((mem = kalloc()) == 0){
-        printf("FALLO EL KALLOC");
-        // goto err;
-      }
-      else{
-        uint64 pa = get_pa(p->pagetable, sterror);
+      uint64 pa = get_pa(p->pagetable, sterror);
+      uint refc = get_refc(pa);
+      if (refc > 1) {
+        char* mem;
+        if((mem = kalloc()) == 0){
+          printf("FALLO EL KALLOC");
+          // goto err;
+        }
         memmove(mem, (char*)pa, PGSIZE);
         printf("LLAMA AL UNMAP \n");
         printf(" el va es %x \n", sterror);
         printf(" la PA ES %x \n", pa);
         printf(" los flags son  %x \n", flags);
+        printf(" el process id es  %s \n", p->name);
         uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 0);
-
-        if(mappages(p->pagetable, sterror, 1, pa, PTE_W|PTE_R|PTE_X|PTE_U) != 0){
+        if(mappages(p->pagetable, sterror, 1, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U) != 0){
           printf("FALLO EL map pages");
           // goto err;
         }
+        decrement_refc(pa);
+        pa = get_pa(p->pagetable, sterror);
+        flags = get_flags(p->pagetable, sterror);
+        printf("DESPUES DEL MAP \n");
+        printf(" la PA ES %x \n", pa);
+        printf(" los flags son  %x \n", flags);
+        printf(" el process id es  %s \n", p->name);
+      } else if (refc == 1) {
+        printf("COUNT ES 1");
+        setw(p->pagetable, sterror);
+      } else {
+        panic("wrong reference count");
       }
-    } 
+    }
     else if(f_v == 0){
       printf("ENTRA POR FLAG PRENDIDO Y EL VALID ES %x \n ", (flags));
       // this is true if trying to access an address either in the free page or above the program's code+data
       // or below the stack
       if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
+        printf(" el process name es  %s \n", p->name);
         printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         p->killed = 1;

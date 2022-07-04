@@ -21,6 +21,7 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+  uint refc[PHYSTOP >> PGSHIFT];
 } kmem;
 
 void
@@ -35,8 +36,10 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+    kmem.refc[(uint64)p >> PGSHIFT] = 0;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by v,
@@ -51,15 +54,26 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
-
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  // if ref count is greater than 0, decrease it
+  if(kmem.refc[(uint64)pa >> PGSHIFT] > 0) {
+    printf("DECREMETO REFC EN KFREE for: %x\n", pa);
+    --kmem.refc[(uint64)pa >> PGSHIFT];
+  }
+
+  // if ref count is 0, then do the regular kfree
+  if(kmem.refc[(uint64)pa >> PGSHIFT] == 0){
+
+    // Fill with junk to catch dangling refs.
+    memset(pa, 1, PGSIZE);
+
+
+    acquire(&kmem.lock);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    release(&kmem.lock);
+  }
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -72,11 +86,55 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+
+  // if memory can be allocated, do so and give it a ref count of 1
+  if(r) {
     kmem.freelist = r->next;
+    printf("SET REFCOUNT FOR %x to 1 \n", (uint64)((char*)r));
+    kmem.refc[(uint64)((char*)r) >> PGSHIFT] = 1;
+  }
+
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+void
+decrement_refc(uint64 pa)
+{
+  if(pa < (uint64)end || pa >= PHYSTOP)
+    panic("decrement_refc");
+
+  acquire(&kmem.lock);
+  printf("DECREMETO REFC EN DECREMENT for: %x \n", pa);
+  --kmem.refc[pa >> PGSHIFT];
+  release(&kmem.lock);
+}
+
+void
+increment_refc(uint64 pa)
+{
+  if(pa < (uint64)end || pa >= PHYSTOP)
+    panic("increment_refc");
+
+  acquire(&kmem.lock);
+  printf("INCREMENT IN INCREMENT for: %x \n", pa);
+  ++kmem.refc[pa >> PGSHIFT];
+  release(&kmem.lock);
+}
+
+uint
+get_refc(uint64 pa)
+{
+  if(pa < (uint64)end || pa >= PHYSTOP)
+    panic("get_refc");
+
+  uint count;
+  acquire(&kmem.lock);
+  count = kmem.refc[pa >> PGSHIFT];
+  release(&kmem.lock);
+
+  return count;
 }

@@ -63,6 +63,9 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            increment_refc(uint64 pa);
+void            decrement_refc(uint64 pa);
+uint            get_refc(uint64 pa);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -173,6 +176,7 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 uint            get_flags(pagetable_t, uint va);
 uint            get_pa(pagetable_t, uint va);
+void            setw(pagetable_t, uint va);
 
 // plic.c
 void            plicinit(void);

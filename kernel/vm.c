@@ -175,12 +175,12 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
-    printf("EN EL UNMAP \n");
-    uint pa = PTE2PA(*pte);
-    uint flags = PTE_FLAGS(*pte);
-    printf(" el va es %x \n", va);
-    printf(" la PA ES %x \n", pa);
-    printf(" los flags son  %x \n", flags);
+    /* printf("EN EL UNMAP \n"); */
+    /* uint pa = PTE2PA(*pte); */
+    /* uint flags = PTE_FLAGS(*pte); */
+    /* printf("unmpap: el va es %x \n", va); */
+    /* printf("unmpap: la PA ES %x \n", pa); */
+    /* printf("unmap: los flags son  %x \n", flags); */
     if((*pte & PTE_V) == 0)
       /* panic("uvmunmap: not mapped"); */
       continue;
@@ -191,7 +191,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       kfree((void*)pa);
     }
     *pte = 0;
-    printf("TIENE QUE LLEGAR ACA %x \n", *pte);
+    /* printf("TIENE QUE LLEGAR ACA %x \n", *pte); */
   }
 }
 
@@ -334,7 +334,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       continue;
     
     pa = PTE2PA(*pte);
-    // set off the write bite
+    // set off the write bit
     wclear(old,i);
     flags = PTE_FLAGS(*pte);
     // if((mem = kalloc()) == 0)
@@ -344,6 +344,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
+    increment_refc(pa);
   }
   return 0;
 
@@ -472,3 +473,8 @@ get_pa(pagetable_t pagetable, uint va){
   return pa;
 }
 
+void
+setw(pagetable_t pagetable, uint va){
+  pte_t *pte = walk(pagetable, va, 0);
+  *pte |= PTE_W;
+}

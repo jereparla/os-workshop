@@ -281,6 +281,7 @@ growproc(int n)
 int
 fork(void)
 {
+  printf("ENTRA AL FORK \n");
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -329,7 +330,7 @@ fork(void)
   //Add the new process at parent's level end 
   makerunnable(p->mlflevel,np);
   release(&np->lock);
-
+  printf("SALE DEL FORK \n");
   return pid;
 }
 
