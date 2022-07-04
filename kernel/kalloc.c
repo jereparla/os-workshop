@@ -58,7 +58,6 @@ kfree(void *pa)
 
   // if ref count is greater than 0, decrease it
   if(kmem.refc[(uint64)pa >> PGSHIFT] > 0) {
-    printf("DECREMETO REFC EN KFREE for: %x\n", pa);
     --kmem.refc[(uint64)pa >> PGSHIFT];
   }
 
@@ -90,7 +89,6 @@ kalloc(void)
   // if memory can be allocated, do so and give it a ref count of 1
   if(r) {
     kmem.freelist = r->next;
-    printf("SET REFCOUNT FOR %x to 1 \n", (uint64)((char*)r));
     kmem.refc[(uint64)((char*)r) >> PGSHIFT] = 1;
   }
 
@@ -108,7 +106,6 @@ decrement_refc(uint64 pa)
     panic("decrement_refc");
 
   acquire(&kmem.lock);
-  printf("DECREMETO REFC EN DECREMENT for: %x \n", pa);
   --kmem.refc[pa >> PGSHIFT];
   release(&kmem.lock);
 }
@@ -120,12 +117,11 @@ increment_refc(uint64 pa)
     panic("increment_refc");
 
   acquire(&kmem.lock);
-  printf("INCREMENT IN INCREMENT for: %x \n", pa);
   ++kmem.refc[pa >> PGSHIFT];
   release(&kmem.lock);
 }
 
-uint
+int
 get_refc(uint64 pa)
 {
   if(pa < (uint64)end || pa >= PHYSTOP)

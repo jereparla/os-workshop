@@ -80,20 +80,24 @@ kvminithart()
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA)
+  if(va >= MAXVA) {
     panic("walk");
+  }
 
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0) {
+        /* printf("OUT OF WALK \n"); */
         return 0;
+      }
       memset(pagetable, 0, PGSIZE);
       *pte = PA2PTE(pagetable) | PTE_V;
     }
   }
+  /* printf("OUT OF WALK \n"); */
   return &pagetable[PX(0, va)];
 }
 
@@ -137,6 +141,7 @@ kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 int
 mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 {
+  /* printf("IN MAPPAGES \n"); */
   uint64 a, last;
   pte_t *pte;
 
@@ -146,8 +151,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
-    if((pte = walk(pagetable, a, 1)) == 0)
+    if((pte = walk(pagetable, a, 1)) == 0) {
+      /* printf("OUT OF MAPPAGES \n"); */
       return -1;
+    }
     if(*pte & PTE_V)
       panic("mappages: remap");
       
@@ -157,6 +164,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     a += PGSIZE;
     pa += PGSIZE;
   }
+  /* printf("OUT OF MAPPAGES \n"); */
   return 0;
 }
 
@@ -166,6 +174,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
+  /* printf("IN UVMUNMAP \n"); */
   uint64 a;
   pte_t *pte;
 
@@ -175,12 +184,6 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
-    /* printf("EN EL UNMAP \n"); */
-    /* uint pa = PTE2PA(*pte); */
-    /* uint flags = PTE_FLAGS(*pte); */
-    /* printf("unmpap: el va es %x \n", va); */
-    /* printf("unmpap: la PA ES %x \n", pa); */
-    /* printf("unmap: los flags son  %x \n", flags); */
     if((*pte & PTE_V) == 0)
       /* panic("uvmunmap: not mapped"); */
       continue;
@@ -191,8 +194,8 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       kfree((void*)pa);
     }
     *pte = 0;
-    /* printf("TIENE QUE LLEGAR ACA %x \n", *pte); */
   }
+  /* printf("OUT OF UVMUNMAP \n"); */
 }
 
 // create an empty user page table.
@@ -295,9 +298,11 @@ freewalk(pagetable_t pagetable)
 void
 uvmfree(pagetable_t pagetable, uint64 sz)
 {
+  /* printf("IN UVMFREE \n"); */
   if(sz > 0)
     uvmunmap(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1);
   freewalk(pagetable);
+  /* printf("OUT OF UVMFREE \n"); */
 }
 
 
@@ -305,12 +310,13 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 void
 wclear(pagetable_t pagetable, uint64 va)
 {
+  /* printf("IN WCLEAR \n"); */
   pte_t *pte;
-  
   pte = walk(pagetable, va, 0);
   if(pte == 0)
     panic("wclear");
   *pte &= ~PTE_W;
+  /* printf("OUT OF WCLEAR \n"); */
 }
 
 // Given a parent process's page table, copy
@@ -322,6 +328,7 @@ wclear(pagetable_t pagetable, uint64 va)
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
+  /* printf("IN UVMCOPY \n"); */
   pte_t *pte;
   uint64 pa, i;
   uint flags;
@@ -334,22 +341,19 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       continue;
     
     pa = PTE2PA(*pte);
-    // set off the write bit
-    wclear(old,i);
+    wclear(old,i); // clear de write flag
     flags = PTE_FLAGS(*pte);
-    // if((mem = kalloc()) == 0)
-    //   goto err;
-    // memmove(mem, (char*)pa, PGSIZE);
-    
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
     increment_refc(pa);
   }
+  /* printf("OUT OF UVMCOPY \n"); */
   return 0;
 
  err:
   uvmunmap(new, 0, i / PGSIZE, 0);
+  printf("OUT OF UVMCOPY \n");
   return -1;
 }
 
@@ -459,22 +463,31 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-uint
-get_flags(pagetable_t pagetable, uint va){
+uint64
+get_flags(pagetable_t pagetable, uint64 va){
+  if(va >= MAXVA) {
+    printf("MAXVA = %x \n", MAXVA);
+    printf("va = %x \n", va);
+    panic("get_flags");
+  }
   pte_t *pte = walk(pagetable, va, 0);
-  uint flags = PTE_FLAGS(*pte);
+  uint64 flags = PTE_FLAGS(*pte);
   return flags;
 }
 
-uint
-get_pa(pagetable_t pagetable, uint va){
+uint64
+get_pa(pagetable_t pagetable, uint64 va){
+  if(va >= MAXVA)
+    panic("get_pa");
   pte_t *pte = walk(pagetable, va, 0);
-  uint pa = PTE2PA(*pte);
+  uint64 pa = PTE2PA(*pte);
   return pa;
 }
 
 void
-setw(pagetable_t pagetable, uint va){
+setw(pagetable_t pagetable, uint64 va){
+  if(va >= MAXVA)
+    panic("setw");
   pte_t *pte = walk(pagetable, va, 0);
   *pte |= PTE_W;
 }

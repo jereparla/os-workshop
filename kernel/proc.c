@@ -110,6 +110,7 @@ allocpid() {
 static struct proc*
 allocproc(void)
 {
+  /* printf("IN ALLOCPROC \n"); */
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -120,6 +121,7 @@ allocproc(void)
       release(&p->lock);
     }
   }
+  /* printf("OUT OF ALLOCPROC \n"); */
   return 0;
 
 found:
@@ -147,6 +149,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  /* printf("OUT OF ALLOCPROC \n"); */
   return p;
 }
 
@@ -190,7 +193,6 @@ proc_pagetable(struct proc *p)
   // to/from user space, so not PTE_U.
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
-    printf("me dio error mappages en el proc_pagetable\n");
     uvmfree(pagetable, 0);
     return 0;
   }
@@ -198,7 +200,6 @@ proc_pagetable(struct proc *p)
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
-    printf("me dio error mappages en el proc_pagetable 2\n");
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
@@ -212,10 +213,11 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  printf("llame a freepagetable de una\n");
+  /* printf("IN PROC_FREEPAGETABLE \n"); */
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
+  /* printf("OUT OF PROC_FREEPAGETABLE \n"); */
 }
 
 // a user program that calls exec("/init")
@@ -281,13 +283,14 @@ growproc(int n)
 int
 fork(void)
 {
-  printf("ENTRA AL FORK \n");
+  /* printf("IN FORK \n"); */
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
 
   // Allocate process.
   if((np = allocproc()) == 0){
+    /* printf("OUT OF FORK \n"); */
     return -1;
   }
 
@@ -295,6 +298,7 @@ fork(void)
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
+    /* printf("OUT OF FORK \n"); */
     return -1;
   }
   np->sz = p->sz;
@@ -330,7 +334,7 @@ fork(void)
   //Add the new process at parent's level end 
   makerunnable(p->mlflevel,np);
   release(&np->lock);
-  printf("SALE DEL FORK \n");
+  /* printf("OUT OF FORK \n"); */
   return pid;
 }
 

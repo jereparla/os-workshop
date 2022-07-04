@@ -65,7 +65,7 @@ void            kfree(void *);
 void            kinit(void);
 void            increment_refc(uint64 pa);
 void            decrement_refc(uint64 pa);
-uint            get_refc(uint64 pa);
+int            get_refc(uint64 pa);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -174,9 +174,9 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
-uint            get_flags(pagetable_t, uint va);
-uint            get_pa(pagetable_t, uint va);
-void            setw(pagetable_t, uint va);
+uint64          get_flags(pagetable_t, uint64 va);
+uint64          get_pa(pagetable_t, uint64 va);
+void            setw(pagetable_t, uint64 va);
 
 // plic.c
 void            plicinit(void);

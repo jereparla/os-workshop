@@ -66,19 +66,16 @@ runcmd(struct cmd *cmd)
 
   if(cmd == 0)
     exit(1);
-  printf("entra al RUNCMD \n");
   switch(cmd->type){
   default:
     panic("runcmd");
 
   case EXEC:
-    printf("ENTRA POR EL CASO DEL EXEC DEL SHELL\n");
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
     exec(ecmd->argv[0], ecmd->argv);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
-    printf("SALE DEL CASO DE EXEC DEL SHELL\n");
     break;
 
   case REDIR:
