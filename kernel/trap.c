@@ -88,20 +88,32 @@ usertrap(void)
     }
     if(option_1 == 0){
       uint64 pa = get_pa(p->pagetable, sterror);
+      // printf("ENTRA AL USERTRAP CON LA PA %p \n", pa);
       uint refc = get_refc(pa);
       if (refc > 1) {
         char* mem;
-        if((mem = kalloc()) == 0){
+        // printf("LLAMA AL KALLOC \n");
+        if((mem = kalloc()) == 0){ 
+          goto err;
+          // printf("FALLA EL KALLOC \n");
         }
+        // printf("ENTRA AL MEMMOVE \n");
         memmove(mem, (char*)pa, PGSIZE);
+        // printf("SALE DEL MEMMOVE \n");
+        // printf("ENTRA AL UNMAP \n");
         uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 0);
+        // printf("SALE DEL UNMAP \n");
+        // printf("ENTRA AL MAP PAGES \n");
         if(mappages(p->pagetable, sterror, 1, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U) != 0){
-          //goto err;
+          goto err;
+          // printf("FALLA EL MAP PAGES \n");
         }
         else{
+          // printf("SALE DEL MAP PAGES \n");
           decrement_refc(pa);
           pa = get_pa(p->pagetable, sterror);
           flags = get_flags(p->pagetable, sterror);
+          // printf("TERMINO DE SALVAR EL USERTRAP \n");
         }
       } else if (refc == 1) {
         setw(p->pagetable, sterror);
@@ -151,8 +163,14 @@ usertrap(void)
       yield();
     }
   }
-
   usertrapret();
+
+  err: 
+    // printf("ENTRO AL GOTO DEL ERR \n ");
+    uint64 sterror = r_stval();
+    uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 1);
+    usertrapret();
+  
 }
 
 //
