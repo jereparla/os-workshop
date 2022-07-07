@@ -19,7 +19,6 @@ OBJS = \
   $K/trap.o \
   $K/syscall.o \
   $K/sysproc.o \
-  $K/syssem.o \
   $K/bio.o \
   $K/fs.o \
   $K/log.o \
@@ -139,8 +138,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_cons\
-	$U/_prod\
+	# $U/_cons\
+	# $U/_prod\
 	$U/_badtest\
 	$U/_stacktest\
 
