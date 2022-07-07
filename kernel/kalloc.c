@@ -21,7 +21,48 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+  int refc[(PHYSTOP - 0x80049000) / PGSIZE];
 } kmem;
+
+int get_ref_index(void *pa){
+  if((char*) pa < end){
+    panic("get ref index");
+  }
+
+  char *e = (char*) PGROUNDDOWN((uint64)pa);
+  char *s = (char*) PGROUNDUP((uint64)end);
+  int index = (e - s) >> PGSHIFT;
+  return index; 
+}
+
+int get_ref_count(void *pa){
+  int index = get_ref_index(pa);
+  acquire(&kmem.lock);
+  int refs = kmem.refc[index];
+  release(&kmem.lock);
+  return refs;
+}
+
+void add_ref(void *pa){
+  int index = get_ref_index(pa);
+  acquire(&kmem.lock);
+  kmem.refc[index]++;
+  release(&kmem.lock);
+}
+
+void dec_ref(void *pa){
+  int index = get_ref_index(pa);
+  int count = get_ref_count(pa);
+  if(count <= 0){
+    panic("def ref: count cannot be negative");
+  }
+  acquire(&kmem.lock);
+  kmem.refc[index]--;
+  if(kmem.refc[index] == 0){
+    kfree(pa);
+  }
+  release(&kmem.lock);
+} 
 
 void
 kinit()
@@ -35,8 +76,13 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE){
     kfree(p);
+    int index = get_ref_index(p);
+    acquire(&kmem.lock);
+    kmem.refc[index] = 0;
+    release(&kmem.lock);
+  }
 }
 
 // Free the page of physical memory pointed at by v,
@@ -72,8 +118,10 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+    add_ref(r);
+  }
   release(&kmem.lock);
 
   if(r)
