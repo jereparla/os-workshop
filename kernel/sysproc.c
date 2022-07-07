@@ -119,3 +119,37 @@ sys_timeout(void)
   for (int i = 0; i < loops * 10000; i++) {};
   return 0;
 }
+
+uint64
+sys_semget(void)
+{
+  int key;
+  argint(0, &key);
+  int value;
+  argint(1, &value);
+  return semget(key,value);
+}
+
+uint64
+sys_semdown(void)
+{
+  int sid;
+  argint(0, &sid);
+  return semdown(sid);
+}
+
+uint64
+sys_semup(void)
+{
+  int sid;
+  argint(0, &sid);
+  return semup(sid);
+}
+
+uint64
+sys_semclose(void)
+{
+  int sid;
+  argint(0, &sid);
+  return semclose(sid);
+}
