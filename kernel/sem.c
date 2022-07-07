@@ -1,11 +1,14 @@
 #include "types.h"
-#include "param.h"
 #include "riscv.h"
-#include "spinlock.h"
-#include "sem.h"
-#include "proc.h"
 #include "defs.h"
-
+#include "param.h"
+#include "fs.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "stat.h"
+#include "proc.h"
+#include "sem.h"
 
 struct sem sem[NSEM];
 
@@ -17,6 +20,7 @@ seminit()
   struct sem *s;
   for(s = sem; s < sem + NSEM; s++){
     initlock(&s->lock, "semlock");
+    s->key = -1;
   }
 }
 
@@ -32,14 +36,14 @@ semget(int key, int init_value)
     return -1;
   }
 
-  //Searching the key in all the semaphores 
+  //Searching the key in all semaphores
   for(s = sem; s < sem + NSEM; s++){
     acquire(&s->lock);
-    // If found the key goto to update the count of refs
+    // If the key was found, then jump to found: to update the ref count
     if(s->key == key){
       goto found;
     }
-    // Save the first free
+    // Save the first free one
     if(s->ref_count == 0 && save_free == 0){
       save_free = s;
     }
@@ -48,7 +52,9 @@ semget(int key, int init_value)
     }
   }
 
-  // If the for ends, not founded the key, so, if is saved an semaphore unused and exist an empty place in osem, reinitialize an add to osem
+  // If the loop ends, then the key wasn't found,
+  // so if it was saved then there's an unused semaphore and an empty place in osem,
+  // so reinit and save to osem.
   if(save_free != 0 ){
     save_free->key = key;
     save_free->value = init_value;
@@ -59,15 +65,18 @@ semget(int key, int init_value)
   release(&save_free->lock);
   return sid;
   
-  // The key was founded
+  // The key was found
   found:
-    //If is founded the semaphore with the key, and one semaphore was saved, free the saved semaphore
+
+    // If the semaphore with the key was found, and one semaphore was saved, then free it.
     if(save_free != 0){
       release(&save_free->lock);
     }
-    //Add an ref count in the semaphore
+
+    // Increment the ref count in the semaphore
     s->ref_count++;
-    //If exist an empty place Add the semaphore to the sempahores table of the process
+
+    // If there's an empty position then add the semaphore to the process' semaphore table
     myproc()->osem[sid] = s;
     release(&s->lock);
     return sid;
@@ -76,8 +85,8 @@ semget(int key, int init_value)
 int 
 semclose(int sid)
 {
-  if(is_valid_sid(sid)){
-    return 1;
+  if(!is_valid_sid(sid)){
+    return -1;
   }
   acquire(&(myproc()->osem[sid]->lock));
   myproc()->osem[sid]->ref_count--;
@@ -89,20 +98,28 @@ semclose(int sid)
 int
 semdown(int sid)
 {
-  if(is_valid_sid(sid)){
-    return 1;
+  if(!is_valid_sid(sid)){
+    return -1;
   }
-  myproc()->osem[sid]->value--;
-  return 0;
+  acquire(&(myproc()->osem[sid]->lock));
+  if(myproc()->osem[sid]->value >= 1){
+    myproc()->osem[sid]->value--;
+    release(&(myproc()->osem[sid]->lock));
+    return 0;
+  }
+  release(&(myproc()->osem[sid]->lock));
+  return -1;
 }
 
 int
 semup(int sid)
 {
-  if(is_valid_sid(sid)){
-    return 1;
+  if(!is_valid_sid(sid)){
+    return -1;
   }
+  acquire(&(myproc()->osem[sid]->lock));
   myproc()->osem[sid]->value++;
+  release(&(myproc()->osem[sid]->lock));
   return 0;
 }
 
@@ -111,3 +128,14 @@ is_valid_sid(int sid){
   return sid >= 0 && sid <= NOSEM && myproc()->osem[sid];
 }
 
+// Increment ref count for e f.
+struct sem*
+semdup(struct sem *s)
+{
+  acquire(&s->lock);
+  if(s->ref_count < 1)
+    panic("semdup");
+  s->ref_count++;
+  release(&s->lock);
+  return s;
+}
