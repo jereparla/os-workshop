@@ -72,20 +72,49 @@ usertrap(void)
     uint64 sterror = r_stval();
     // this is true if trying to access an address either in the free page or above the program's code+data
     // or below the stack
-    if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
-      printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-      p->killed = 1;
+    uint64 flags;
+    int option_1 = 0;
+    if (sterror >= MAXVA) {
+      option_1 = 1;
     }
-    // this is true if trying to access one of the free pages available for stack expansion
-    else {
-      printf("There would be a page fault at: %x \n", sterror);
-      uint64 new_stack_block = PGROUNDDOWN(sterror);
-      uint64 sz1;
-      printf("But we assign a new stack block at: %x \n", new_stack_block);
-      if((sz1 = uvmalloc(p->pagetable, new_stack_block, new_stack_block + PGSIZE)) == 0)
-        panic("uvmalloc");
-      printf("New stack block + PGSIZE: %x \n", sz1);
+    else{
+      flags = get_flags(p->pagetable, sterror);
+      int f_w = ((flags) & PTE_W);
+      int f_v = ((flags) & PTE_V);
+      int f_u = ((flags) & PTE_U);
+      if(f_w == 0 && f_v != 0 && f_u != 0){
+        option_1 = 0;
+      }
+      else{
+        option_1 = 1;
+      }
+    }
+    if(option_1 == 0){
+      char* mem = kalloc();
+      uint64 pa = get_pa(p->pagetable, sterror);
+      memmove(mem, (char*) pa, PGSIZE);
+      uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 0);
+      dec_ref((void*) pa);
+      if(mappages(p->pagetable, PGROUNDDOWN(sterror), 1, (uint64) mem, PTE_W | PTE_R | PTE_X | PTE_U) != 0){
+        p->killed = 1;
+      }
+    }
+    else{
+      if (sterror < p->cdsize || sterror > p->cdsize + MAXSTACKPGS * PGSIZE) {
+        printf("usertrap(): page fault %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+      }
+      // this is true if trying to access one of the free pages available for stack expansion
+      else {
+        printf("There would be a page fault at: %x \n", sterror);
+        uint64 new_stack_block = PGROUNDDOWN(sterror);
+        uint64 sz1;
+        printf("But we assign a new stack block at: %x \n", new_stack_block);
+        if((sz1 = uvmalloc(p->pagetable, new_stack_block, new_stack_block + PGSIZE)) == 0)
+          panic("uvmalloc");
+        printf("New stack block + PGSIZE: %x \n", sz1);
+      }
     }
   } else if((which_dev = devintr()) != 0){
     // ok
