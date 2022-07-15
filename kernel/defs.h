@@ -177,6 +177,8 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 uint64          get_flags(pagetable_t, uint64 va);
 uint64          get_pa(pagetable_t, uint64 va);
 void            setw(pagetable_t, uint64 va);
+void            setrsw(pagetable_t pagetable, uint64 va);
+void            rswclear(pagetable_t pagetable, uint64 va);
 
 // plic.c
 void            plicinit(void);

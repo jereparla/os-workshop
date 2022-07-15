@@ -83,14 +83,12 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   if(va >= MAXVA) {
     panic("walk");
   }
-
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0) {
-        /* printf("OUT OF WALK \n"); */
         return 0;
       }
       memset(pagetable, 0, PGSIZE);
@@ -191,7 +189,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      kfree((void*)pa);
+      decrement_refc(pa);
     }
     *pte = 0;
   }
@@ -247,7 +245,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     }
     memset(mem, 0, PGSIZE);
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-      kfree(mem);
+      decrement_refc((uint64) mem);
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
@@ -290,7 +288,7 @@ freewalk(pagetable_t pagetable)
       panic("freewalk: leaf");
     }
   }
-  kfree((void*)pagetable);
+  decrement_refc((uint64)pagetable);
 }
 
 // Free user memory pages,
@@ -319,6 +317,19 @@ wclear(pagetable_t pagetable, uint64 va)
   /* printf("OUT OF WCLEAR \n"); */
 }
 
+// mark a PTE invalid for user write.
+void
+rswclear(pagetable_t pagetable, uint64 va)
+{
+  /* printf("IN WCLEAR \n"); */
+  pte_t *pte;
+  pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    panic("wclear");
+  *pte &= ~PTE_RSW;
+  /* printf("OUT OF WCLEAR \n"); */
+}
+
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -342,6 +353,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     
     pa = PTE2PA(*pte);
     wclear(old,i); // clear de write flag
+    setrsw(old,i); // set on rsw flag
     flags = PTE_FLAGS(*pte);
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
@@ -377,7 +389,7 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-
+  
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
@@ -469,6 +481,9 @@ get_flags(pagetable_t pagetable, uint64 va){
     panic("get_flags");
   }
   pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0){
+    return -1;
+  }
   uint64 flags = PTE_FLAGS(*pte);
   return flags;
 }
@@ -488,4 +503,12 @@ setw(pagetable_t pagetable, uint64 va){
     panic("setw");
   pte_t *pte = walk(pagetable, va, 0);
   *pte |= PTE_W;
+}
+
+void
+setrsw(pagetable_t pagetable, uint64 va){
+  if(va >= MAXVA)
+    panic("setw");
+  pte_t *pte = walk(pagetable, va, 0);
+  *pte |= PTE_RSW;
 }

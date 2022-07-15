@@ -67,8 +67,7 @@ usertrap(void)
 
     syscall();
     //scause = 15 and scause = 13 indicate a page fault (per risc-v man).
-  } else if (r_scause() == 12 || r_scause() == 13 || r_scause() == 15){
-
+  } else if (r_scause() == 13 || r_scause() == 15){
     uint64 sterror = r_stval();
     uint64 flags;
     int option_1 = 0;
@@ -77,9 +76,14 @@ usertrap(void)
     }
     else{
       flags = get_flags(p->pagetable, sterror);
+      // if(flags == -1){
+      //   p->killed = 1;
+      //   goto kill;
+      // }
       int f_w = ((flags) & PTE_W);
       int f_v = ((flags) & PTE_V);
-      if(f_w == 0 && f_v != 0){
+      int f_rsw = ((flags) & PTE_RSW);
+      if(f_w == 0 && f_v != 0 && f_rsw != 0 && flags != -1){
         option_1 = 0;
       }
       else{
@@ -117,6 +121,7 @@ usertrap(void)
         }
       } else if (refc == 1) {
         setw(p->pagetable, sterror);
+        rswclear(p->pagetable, sterror);
       } else {
         panic("wrong reference count");
       }
@@ -150,8 +155,9 @@ usertrap(void)
     p->killed = 1;
   }
 
-  if(p->killed)
+  if(p->killed){
     exit(-1);
+  }
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2){
@@ -171,6 +177,9 @@ usertrap(void)
     uvmunmap(p->pagetable, PGROUNDDOWN(sterror), 1, 1);
     usertrapret();
   
+  // kill: 
+  //   exit(-1);
+  //   usertrapret();
 }
 
 //

@@ -39,9 +39,12 @@ freerange(void *pa_start, void *pa_end)
   // printf("EL END ES: %p ", (uint64) end);
   // printf("EL PHYSTOP ES: %p ", (uint64) PHYSTOP);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
-    kmem.refc[((uint64)p - (uint64) end)>> PGSHIFT] = 0;
     kfree(p);
+    acquire(&kmem.lock);
+    kmem.refc[((uint64)p - (uint64) end)>> PGSHIFT] = 0;
+    release(&kmem.lock);
   }
+
 }
 
 // Free the page of physical memory pointed at by v,
@@ -59,25 +62,15 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  // if ref count is greater than 0, decrease it
-  if(kmem.refc[((uint64)pa - (uint64)end)>> PGSHIFT] > 0) {
-    // printf("DECREMENTA LA PA %p \n", (uint64)pa - (uint64)end);
-    --kmem.refc[((uint64)pa - (uint64)end) >> PGSHIFT];
-  }
-
-  // if ref count is 0, then do the regular kfree
-  if(kmem.refc[((uint64)pa - (uint64)end) >> PGSHIFT] == 0){
-    // printf("HACE EL MEMSET DE LA PA %p \n", (uint64)pa - (uint64)end);
-    // Fill with junk to catch dangling refs.
-    memset(pa, 1, PGSIZE);
+  // printf("HACE EL MEMSET DE LA PA %p \n", (uint64)pa - (uint64)end);
+  // Fill with junk to catch dangling refs.
+  memset(pa, 1, PGSIZE);
 
 
-    acquire(&kmem.lock);
-    r->next = kmem.freelist;
-    kmem.freelist = r;
-    release(&kmem.lock);
-  }
-  // printf("SALE DEL KFREE \n");
+  acquire(&kmem.lock);
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  release(&kmem.lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -91,35 +84,26 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-
+  // printf("ENTRA AL KALLOC \n");
   // if memory can be allocated, do so and give it a ref count of 1
   if(r) {
     kmem.freelist = r->next;
+    // printf("AVANZO AL NEXT EN AL KALLOC \n");
     kmem.refc[((uint64)((char*)r)- (uint64)end) >> PGSHIFT] = 1;
+    // printf("INICIALIZO LA POSICION \n");
     // printf("INICIA LA PA %p CON 1 \n", (uint64)((char*)r)- (uint64)end);
   }
 
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    // printf("HIZO EL MEMSET \n");
+  }
   // printf("SALE DEL KALLOC \n");
   return (void*)r;
 }
 
-void
-decrement_refc(uint64 pa)
-{
-  // printf("ENTRA AL DECREMENT REF \n");
-  if(pa < (uint64)end || pa >= PHYSTOP)
-    panic("decrement_refc");
-
-  acquire(&kmem.lock);
-  // printf("DECREMENTA LA PA %p \n", (pa - (uint64) end));
-  --kmem.refc[(pa - (uint64) end) >> PGSHIFT];
-  release(&kmem.lock);
-  // printf("SALE DEL DECREMENT REF \n");
-}
 
 void
 increment_refc(uint64 pa)
@@ -130,7 +114,7 @@ increment_refc(uint64 pa)
 
   acquire(&kmem.lock);
   // printf("INCREMENTA LA PA %p \n", (pa - (uint64) end));
-  ++kmem.refc[(pa - (uint64) end)>> PGSHIFT];
+  ++kmem.refc[(pa - (uint64) end) >> PGSHIFT];
   release(&kmem.lock);
   // printf("SALE DEL INCREMENT REF \n");
 }
@@ -150,4 +134,29 @@ get_refc(uint64 pa)
   release(&kmem.lock);
   // printf("SALE DEL GET REF \n");
   return count;
+}
+
+void
+decrement_refc(uint64 pa)
+{
+  // printf("ENTRA AL DECREMENT REF \n");
+    if(pa < (uint64)end || pa >= PHYSTOP)
+    panic("decrement_refc");
+
+  int refc = get_refc(pa);
+
+  acquire(&kmem.lock);
+  if(refc <= 0){
+    panic("negative reference count");
+  }
+  --kmem.refc[(pa - (uint64) end) >> PGSHIFT];
+  if(kmem.refc[(pa - (uint64) end) >> PGSHIFT] == 0){
+
+    release(&kmem.lock);
+    kfree((void*)pa);
+  }
+  if(holding(&kmem.lock)){
+    release(&kmem.lock);
+  }
+  // printf("SALE DEL DECREMENT REF \n");
 }

@@ -160,7 +160,7 @@ static void
 freeproc(struct proc *p)
 {
   if(p->trapframe)
-    kfree((void*)p->trapframe);
+    decrement_refc((uint64)p->trapframe);
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -283,7 +283,6 @@ growproc(int n)
 int
 fork(void)
 {
-  /* printf("IN FORK \n"); */
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -334,7 +333,6 @@ fork(void)
   //Add the new process at parent's level end 
   makerunnable(p->mlflevel,np);
   release(&np->lock);
-  /* printf("OUT OF FORK \n"); */
   return pid;
 }
 
@@ -433,7 +431,7 @@ reparent(struct proc *p)
 // until its parent calls wait().
 void
 exit(int status)
-{
+{ 
   struct proc *p = myproc();
 
   if(p == initproc)
@@ -474,7 +472,6 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&wait_lock);
-
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
